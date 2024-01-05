@@ -1,6 +1,6 @@
 {
   "name": "@rfref/awards",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "Государственные награды РФ",
   "main": "awards.js",
   "type": "module",
