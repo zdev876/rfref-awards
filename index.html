@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Государственные награды Российской Федерации</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Georgia;
+      font-size: 18px;
+    }
+
+    body {
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    h1, h2, h3 {
+      font-weight: normal;
+      margin: 1rem 0;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 5rem;
+    }
+
+    p {
+      margin: 1rem 0;
+    }
+
+    .layout {
+      padding: 1rem;
+      max-width: 50rem;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: row;
+    }
+
+    .layout aside {
+      width: 10rem;
+      flex-basis: 10rem;
+    }
+
+    .award {
+      margin-bottom: 4rem;
+    }
+
+
+    .award header {
+      margin-left: calc(20% + 2rem);
+      margin-bottom: 2rem;
+    }
+
+    .award header * {
+      margin: 0;
+    }
+
+    .award-type {
+      opacity: 0.38;
+      font-size: smaller;
+      margin-top: 1rem !important;
+    }
+
+    .award main {
+      display: flex;
+    }
+
+    .award-images {
+      width: 20%;
+      flex-basis: 20%;
+      flex-shrink: 0;
+      margin-right: 2rem;
+    }
+
+    .award-image img {
+      display: block;
+      max-width: 100%;
+      margin: 0 auto 1rem auto;
+    }
+
+    .award-reason {
+      white-space: pre-line;
+    }
+
+    .award-types {
+      margin-bottom: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Государственные награды Российской Федерации</h1>
+  </header>
+
+  <section class="layout">
+    <main id="content">
+      <awards-list src="awards.json" filter-type=""></awards-list>
+    </main>
+  </section>
+
+  <script>
+    class HTMLAwardsListElement extends HTMLElement {
+      constructor () {
+        super();
+      }
+
+      get src () { return this.getAttribute('src'); }
+      get data () { return this[`awards-list-data-${this.src}`]; }
+      set data (data) { this[`awards-list-data-${this.src}`] = data; }
+      get filterType () { return this.getAttribute('filter-type'); }
+
+      static get observedAttributes () { return ['src']; }
+
+      attributeChangedCallback (name, prev, value) {
+        if (value !== prev) {
+          fetch(value)
+            .then((response) => response.json())
+            .then((json) => {
+              this.data = json;
+              this.dataChangedCallback();
+            });
+        }
+      }
+
+      dataChangedCallback () {
+        this.innerHTML = this.renderAwards();
+      }
+
+      renderAwards () {
+        const elements = [];
+        Object.values(this.data).forEach((award) => {
+          if (!this.filterType || award.type === this.filterType) {
+            elements.push(`
+              <section class="award">
+                <header>
+                  <h2 class="award-name">${award.name}</h2>
+                  <p class="award-type">${award.type}</p>
+                </header>
+                <main>
+                  <div class="award-images">
+                    ${award.images.map((image) => {
+                      return `
+                        <div class="award-image">
+                          <img class="award-image-main" src="${image.main}">
+                          ${image.ribbon ? `<img class="award-image-ribbon" src="${image.ribbon}">` : '' }
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                  <div class="award-reason">${award.reason}</div>
+                </main>
+              </section>
+            `);
+          }
+        });
+        return elements.join('');
+      }
+    }
+
+    customElements.define('awards-list', HTMLAwardsListElement);
+  </script>
+
+</body>
+</html>

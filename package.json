@@ -5,6 +5,7 @@
   "main": "awards.js",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "node build.js",
     "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" npx jest"
   },
@@ -15,5 +16,8 @@
   "author": "Zdev 876 <zdev876@mail.ru>",
   "devDependencies": {
     "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "vite": "^5.3.1"
   }
 }
