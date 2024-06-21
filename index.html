@@ -23,8 +23,9 @@
     }
 
     h1 {
-      text-align: center;
-      margin-bottom: 5rem;
+      padding: 0 2.5rem;
+      box-sizing: border-box;
+      height: 5rem;
     }
 
     p {
@@ -32,22 +33,28 @@
     }
 
     .layout {
-      padding: 1rem;
-      max-width: 50rem;
+      padding: 2.5rem;
       margin: 0 auto;
       display: flex;
       flex-direction: row;
+      justify-content: space-between;
     }
 
     .layout aside {
-      width: 10rem;
-      flex-basis: 10rem;
+      width: 20rem;
+      flex-basis: 20rem;
+      flex-shrink: 0;
+      margin-left: 2.5rem;
+      margin-right: 0;
+    }
+
+    .layout main {
+      max-width: 42rem;
     }
 
     .award {
       margin-bottom: 4rem;
     }
-
 
     .award header {
       margin-left: calc(150px + 2rem);
@@ -90,41 +97,139 @@
     .award-types {
       margin-bottom: 3rem;
     }
+
+    .award-menu-item {
+      font-size: 0.75rem;
+      margin-bottom: 0.5rem;
+      text-decoration: underline;
+      color: steelblue;
+      cursor: pointer;
+    }
+
+    .award-menu-item[data-depth="2"] {
+      margin-left: 2rem;
+    } 
   </style>
 </head>
 <body>
 
-  <header>
-    <h1>Государственные награды Российской Федерации</h1>
-  </header>
+  <h1>Государственные награды Российской Федерации</h1>
 
   <section class="layout">
     <main id="content">
-      <awards-list src="awards.json" filter-type=""></awards-list>
+      <awards-list id="awards-list" src="awards.json" filter=""></awards-list>
     </main>
+    <aside>
+      <awards-menu for="awards-list"></awards-menu>
+    </aside>
   </section>
 
   <script>
+    class HTMLAwardsMenuElement extends HTMLElement {
+      constructor () {
+        super();
+      }
+
+      list;
+
+      get for () { return this.getAttribute('for'); }
+      get elementFor () { return document.getElementById(this.for); }
+      static get observedAttributes () { return ['for']; }
+
+      attributeChangedCallback (name, prev, value) {
+        if (name === 'for' && value !== prev) {
+          let interval = setInterval(() => {
+            if (this.elementFor?.dataReady) {
+              clearInterval(interval);
+              this.elementFor?.dataReady.then((data) => {
+                this.dataChangedCallback(data);
+              });
+            }
+          }, 50);
+        }
+      }
+
+      connectedCallback () {
+        this.addEventListener('click', (event) => {
+          const filter = event.target.getAttribute('data-filter');
+          this.elementFor.setAttribute('filter', filter);
+          document.documentElement.scrollTop = 0;
+        });
+      }
+
+      disconnectedCallback () {
+        this.removeEventListener('click');
+      }
+
+      dataChangedCallback (data) {
+        const list = [{
+          filter: '', label: 'Все', depth: 1
+        }];
+        const types = Object
+          .keys(Object.values(data)
+          .reduce((map, item) => {
+            map[item.type] = true;
+            return map;
+          }, {}));
+        for (let i = 0; i < types.length; i += 1) {
+          list.push({
+            filter: `type=${types[i]}`,
+            label: types[i],
+            depth: 1
+          });
+          Object.values(data).forEach((item) => {
+            if (item.type === types[i]) {
+              list.push({
+                filter: `name=${item.name}`,
+                label: item.name,
+                depth: 2
+              });
+            }
+          })
+        }
+        this.list = list;
+        this.innerHTML = this.renderMenu();
+      }
+
+      renderMenu () {
+        return this.list.map((item) => {
+          return `
+            <div class="award-menu-item" data-depth="${item.depth}" data-filter="${item.filter}">${item.label}</div>
+          `;
+        }).join('');
+      }
+    }
+
     class HTMLAwardsListElement extends HTMLElement {
       constructor () {
         super();
       }
 
-      get src () { return this.getAttribute('src'); }
+      dataReady;
+      filterParams = new URLSearchParams('');
+
+      // get src () { return this.getAttribute('src'); }
       get data () { return this[`awards-list-data-${this.src}`]; }
       set data (data) { this[`awards-list-data-${this.src}`] = data; }
-      get filterType () { return this.getAttribute('filter-type'); }
+      get filter () { return this.getAttribute('filter'); }
+      get filterEmpty () { return !this.filter; }
+      get filterType () { return this.filterParams?.get('type'); }
+      get filterName () { return this.filterParams?.get('name'); }
 
-      static get observedAttributes () { return ['src']; }
+      static get observedAttributes () { return ['src', 'filter']; }
 
       attributeChangedCallback (name, prev, value) {
-        if (value !== prev) {
-          fetch(value)
+        if (name === 'src' && value !== prev) {
+          this.dataReady = fetch(value)
             .then((response) => response.json())
             .then((json) => {
               this.data = json;
               this.dataChangedCallback();
+              return json;
             });
+        } else if (name === 'filter' && value !== prev) {
+          this.filterParams = new URLSearchParams(value);
+          this.dataChangedCallback();
         }
       }
 
@@ -132,10 +237,15 @@
         this.innerHTML = this.renderAwards();
       }
 
+
       renderAwards () {
         const elements = [];
         Object.values(this.data).forEach((award) => {
-          if (!this.filterType || award.type === this.filterType) {
+          if (
+            this.filterEmpty || 
+            this.filterType === award.type || 
+            this.filterName === award.name
+          ) {
             elements.push(`
               <section class="award">
                 <header>
@@ -163,6 +273,7 @@
       }
     }
 
+    customElements.define('awards-menu', HTMLAwardsMenuElement);
     customElements.define('awards-list', HTMLAwardsListElement);
   </script>
 
