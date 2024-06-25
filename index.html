@@ -15,6 +15,8 @@
     body {
       font-size: 1rem;
       line-height: 1.5;
+      --award-image-width: 150px;
+      --text-margin-left: calc(var(--award-image-width) + 2rem);
     }
 
     h1, h2, h3 {
@@ -26,6 +28,14 @@
       padding: 0 2.5rem;
       box-sizing: border-box;
       height: 5rem;
+      text-align: center;
+      margin-left: var(--text-margin-left);
+    }
+
+    h2 {
+      margin-bottom: 3rem;
+      font-style: italic;
+      text-align: center;
     }
 
     p {
@@ -37,19 +47,57 @@
       margin: 0 auto;
       display: flex;
       flex-direction: row;
-      justify-content: space-between;
+      justify-content: space-around;
     }
 
     .layout aside {
-      width: 20rem;
-      flex-basis: 20rem;
+      width: 15rem;
+      flex-basis: 15rem;
       flex-shrink: 0;
-      margin-left: 2.5rem;
-      margin-right: 0;
+    }
+
+    table-of-contents {
+      font-size: 12px;
+      font-family: sans-serif;
+      margin-right: 3rem;
+    }
+
+    table-of-contents [data-depth] {
+      margin-bottom: 0.25rem;
+    }
+
+    table-of-contents [data-depth="2"] {
+      font-weight: bold;
+    }
+
+    table-of-contents [data-depth="2"]:not(:first-child) {
+      margin-top: 1rem;
+    }
+
+    table-of-contents [data-depth="3"] {
+      margin-left: 1rem;
+      position: relative;
+    }
+
+    table-of-contents [data-depth="3"]:before {
+      content: "—";
+      position: absolute;
+      left: 0;
+      transform: translateX(calc(-100% - 0.3rem));
+      opacity: 0.62;
+    }
+
+    table-of-contents a {
+      text-decoration: none;
+      color: steelblue;
     }
 
     .layout main {
       max-width: 42rem;
+    }
+
+    .award-type-header {
+      margin-left: var(--text-margin-left);
     }
 
     .award {
@@ -59,6 +107,7 @@
     .award header {
       margin-left: calc(150px + 2rem);
       margin-bottom: 2rem;
+      text-align: center;
     }
 
     .award header * {
@@ -81,7 +130,6 @@
       flex-shrink: 0;
       margin-right: 2rem;
       position: relative;
-      top: -4.75rem;
     }
 
     .award-image img {
@@ -116,15 +164,94 @@
   <h1>Государственные награды Российской Федерации</h1>
 
   <section class="layout">
+    <aside>
+      <table-of-contents for="awards-list"></table-of-contents>
+    </aside>
     <main id="content">
       <awards-list id="awards-list" src="awards.json" filter=""></awards-list>
     </main>
-    <aside>
-      <awards-menu for="awards-list"></awards-menu>
-    </aside>
   </section>
 
   <script>
+    const toc = document.querySelector('table-of-contents');
+    toc.addEventListener('click', ({ target }) => {
+      const title = target.textContent;
+      const depth = Number(target.closest('[data-depth]')?.getAttribute('data-depth'));
+      if (depth) {
+        toc.forElement.setAttribute('filter', `${depth === 2 ? 'type' : 'name'}=${title}`);
+      }
+    });
+
+    class HTMLTableOfContentsElement extends HTMLElement {
+      constructor () {
+        super();
+      }
+
+      headerOptions = {
+        regexp: /h(?<depth>\d+)/i,
+        type: 'tag',
+        list: [
+          'h1',
+          'h2',
+          'h3',
+          'h4',
+          'h5',
+          'h6',
+          'h7',
+          'h8',
+          'h9',
+          'h10',
+        ]
+      }
+
+      get for () { return this.getAttribute('for'); }
+      get forElement () { return this.for && document.getElementById(this.for); }
+      get forElementReady () {
+        return new Promise((resolve) => {
+          let id = setInterval(() => {
+            if (this.forElement) {
+              resolve(this.forElement);
+              clearInterval(id);
+            }
+          }, 50);
+        });
+      }
+
+      static get observedAttributes () { return ['for']; }
+
+      attributeChangedCallback (name, prev, value) {
+        if (name === 'for' && value !== prev) {
+          let waitForElement;
+          waitForElement = setInterval(() => {
+            if (this.forElement) {
+              this.refreshTableOfContents();
+              clearInterval(waitForElement);
+            }
+          }, 50);
+        }
+      }
+
+      connectedCallback () {
+        this.forElementReady.then((element) => {
+          this.refreshTableOfContents();
+        });
+      }
+
+      refreshTableOfContents () {
+        // Собрать все заголовки
+        const { list, type, regexp } = this.headerOptions;
+        const index = Array
+          .from(this.forElement.querySelectorAll(list.join(',')))
+          .map((header) => {
+            if (type === 'tag') {
+              const depth = Number(header.tagName.match(regexp)?.groups.depth);
+              return `<div class="table-of-contents__item" data-depth="${depth}"><a href="#">${header.textContent}</a></div>`;
+            }
+          });
+        this.innerHTML = index.join('');
+      }
+    }
+
     class HTMLAwardsMenuElement extends HTMLElement {
       constructor () {
         super();
@@ -234,47 +361,63 @@
       }
 
       dataChangedCallback () {
-        this.innerHTML = this.renderAwards();
+        this.renderAwards();
       }
 
 
-      renderAwards () {
+      async renderAwards () {
         const elements = [];
-        Object.values(this.data).forEach((award) => {
-          if (
-            this.filterEmpty || 
-            this.filterType === award.type || 
-            this.filterName === award.name
-          ) {
-            elements.push(`
-              <section class="award">
-                <header>
-                  <p class="award-type">${award.type}</p>
-                  <h2 class="award-name">${award.name}</h2>
-                </header>
-                <main>
-                  <div class="award-images">
-                    ${award.images.map((image) => {
-                      return `
-                        <div class="award-image">
-                          <img class="award-image-main" src="${image.main}">
-                          ${image.ribbon ? `<img class="award-image-ribbon" src="${image.ribbon}">` : '' }
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>
-                  <div class="award-reason">${award.reason}</div>
-                </main>
-              </section>
-            `);
-          }
-        });
-        return elements.join('');
+        if (this.dataReady) {
+          await this.dataReady;
+          let prevType;
+          Object.values(this.data).forEach((award) => {
+            // Если новый тип, вставляем подзаголовок
+            if (
+              (this.filterEmpty || this.filterName === award.name || this.filterType === award.type) &&
+              (!prevType || award.type !== prevType || this.filterName === award.name)
+            ) {
+              elements.push(`<h2 class="award-type-header">${award.type}</h2>`)
+            }
+            // Сохраняем тип для сравнения выше
+            prevType = award.type;
+
+            if (
+              this.filterEmpty || 
+              this.filterType === award.type || 
+              this.filterName === award.name
+            ) {
+              elements.push(`
+                <section class="award">
+                  <header>
+                    <p class="award-type">${award.type}</p>
+                    <h3 class="award-name">${award.name}</h3>
+                  </header>
+                  <main>
+                    <div class="award-images">
+                      ${award.images.map((image) => {
+                        return `
+                          <div class="award-image">
+                            <img class="award-image-main" src="${image.main}">
+                            ${image.ribbon ? `<img class="award-image-ribbon" src="${image.ribbon}">` : '' }
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                    <div class="award-reason">${award.reason}</div>
+                  </main>
+                </section>
+              `);
+            }
+          });
+
+          this.innerHTML = elements.join('');
+        }
       }
     }
 
     customElements.define('awards-menu', HTMLAwardsMenuElement);
     customElements.define('awards-list', HTMLAwardsListElement);
+    customElements.define('table-of-contents', HTMLTableOfContentsElement);
   </script>
 
 </body>
